@@ -1,0 +1,129 @@
+---
+title: "Reproducible Research: Project 1"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+
+**The purpose of this assignment is to analyze data from a FitBit and report any patterns recognized in the data.**
+
+This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The variables included in this dataset are:
+
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken
+
+## Load and preprocess the Data
+
+```{r read.csv activity}
+activity <- read.csv('activity.csv', header = TRUE)
+activity <- transform(activity, date = as.Date(activity$date))
+
+```
+
+
+## What is the mean total number of steps taken per day?
+
+```{r activity}
+
+## Capture Sum of Steps Per Day
+daily_steps <- aggregate(steps ~ date, activity, sum )
+
+## Get mean and median of Daily Steps
+original_mean <- mean(daily_steps$steps)
+original_median <- median(daily_steps$steps)
+
+print(paste('The Mean number of steps taken per day is', original_mean ,'and the median is', original_median))
+```
+
+``` {r histogram }
+
+## Plot Histogram of Daily Steps
+hist(daily_steps$steps, col = "green", border = "blue", xlab = "Steps", main = "Histogram of Daily Steps")
+
+```
+
+## What is the average daily activity pattern?
+
+```{r timeplot}
+# Get average steps per 5 minute interval
+avg_interval <- aggregate(steps ~ interval, activity, mean)
+
+# Create Time-Series Plot
+plot(avg_interval$interval, avg_interval$steps, type = "l", xlab = 'Interval', ylab = 'Avg Steps', main = 'Avg Steps by Interval')
+
+# Get 5 minute interval with the highest average of steps
+max_interval <- avg_interval[which.max(avg_interval$steps),]
+
+```
+At interval 835 or 8:35 AM, on any given day of the week, the highest amount of steps occur.  The average amount of steps taken at this time is 206.
+
+##  Imputing Missing Values
+1.Calculate and report the total number of missing values in the dataset (NA values)
+``` {r na}
+na_values <- activity[is.na(activity[,'steps'])==TRUE,]
+print(paste('There are',nrow(na_values),'missing values for the activity data set.'))
+```
+
+2.Fill in all of the missing interval values with their daily averages.  
+```{r imputed}
+## Create new dataset
+imputed <- activity
+## Replace NA values with average daily interval values.
+imputed$steps <- ifelse(is.na(imputed$steps),avg_interval$steps[match(activity$interval,avg_interval$interval)],imputed$steps)
+```
+3.Report the mean and median total number of steps taken per day.
+``` {r imputed histogram}
+# First calculate the average steps taken per interval of the imputed data set.
+daily_imputed <- aggregate(steps ~ date, imputed, sum)
+
+# Get mean and median of the new average.
+imp_mean <- mean(daily_imputed$steps)
+imp_median <- median(daily_imputed$steps)
+
+# Calculate the difference between the imputed and original means.
+mean_diff <- imp_mean-original_mean     ## 0
+med_diff <- imp_median-original_median ## 1.188679
+```
+### Mean and median of the new imputed data are both 10766.19.  The difference between the imputed and original mean is 0 and the difference between the median is 1.188678
+
+4.Make a histogram of the total number of steps taken each day.
+
+``` {r comparison histogram}
+hist(daily_imputed$steps, col = 'red',border = 'blue', xlab = 'Steps', main = 'Daily Steps')
+hist(daily_steps$steps, col = "green", border = "blue", xlab = "Steps", main = "Daily Steps", add = T)
+legend("topleft", c("Imputed", "Original"), col=c("red", "green"), lwd=10)
+```
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+
+```{r weekdays}
+imputed_dayofweek <- transform(imputed, date = weekdays(as.Date(imputed$date)))
+for (i in 1:nrow(imputed_dayofweek)) {
+  imputed_dayofweek$dayofweek[i] <- switch(imputed_dayofweek$date[i],
+          "Saturday"="Weekend",
+          "Sunday"="Weekend",                              
+          "Monday"="Weekday",
+          "Tuesday"="Weekday",
+          "Wednesday"="Weekday",
+          "Thursday"="Weekday",
+          "Friday"="Weekday"
+          )  
+}
+imputed_dayofweek <- transform(imputed_dayofweek, dayofweek = as.factor(dayofweek))
+weekday_average <-  aggregate(steps ~ interval+dayofweek, imputed_dayofweek, mean)
+```
+### Plot the data
+```{r xyplot}
+library(lattice)
+xyplot(steps ~ interval|dayofweek, weekday_average, layout=c(1,2), type = "l", main = "Average Steps by Day of Week", col = "blue")
+
+```
